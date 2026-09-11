@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>富國島之旅分帳助手</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: #f4f6f8; margin: 0; padding: 12px; display: flex; justify-content: center; }
+        .app-container { width: 100%; max-width: 480px; }
+        .card { background: #fff; padding: 16px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); margin-bottom: 16px; }
+        h2, h3 { margin-top: 0; margin-bottom: 12px; color: #1a1a1a; text-align: center; }
+        .group { margin-bottom: 12px; }
+        label { font-weight: 600; display: block; margin-bottom: 6px; color: #444; font-size: 13px; }
+        input, select { width: 100%; padding: 10px 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; outline: none; background: #fff; }
+        input:focus, select:focus { border-color: #007aff; }
+        .quick-btn { display: flex; gap: 8px; margin-top: 6px; }
+        .btn-small { flex: 1; padding: 6px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .btn-primary { width: 100%; padding: 12px; background: #007aff; color: white; font-weight: bold; font-size: 16px; border: none; border-radius: 10px; cursor: pointer; margin-top: 8px; }
+        .btn-danger { background: #ff3b30; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+        .btn-secondary { background: #34c759; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 8px; }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; }
+        .checkbox-item { display: flex; align-items: center; background: #f0f4f8; padding: 6px 10px; border-radius: 20px; font-size: 14px; }
+        .checkbox-item input { width: auto; margin-right: 6px; }
+        .item-list { list-style: none; padding: 0; margin: 0; }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .item-info { font-size: 14px; }
+        .item-title { font-weight: bold; color: #333; }
+        .item-sub { color: #666; font-size: 12px; margin-top: 2px; }
+        .result-box { background: #eef6ff; border-radius: 12px; padding: 14px; margin-top: 12px; }
+        .result-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
+        .result-row:last-child { margin-bottom: 0; }
+        .settle-card { background: #fff3cd; border-radius: 10px; padding: 12px; margin-top: 10px; font-size: 14px; border: 1px solid #ffeeba; }
+        /* 新增：雙向換算專屬樣式 */
+        .converter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- 1. 設定區塊 -->
+    <div class="card">
+        <h2>🇻🇳 越南旅遊分帳助手</h2>
+        <div class="group">
+            <label>自訂匯率 (1 TWD = ? VND)</label>
+            <input type="number" id="rate" value="780" onchange="saveData(); render(); calcConverter('vnd');">
+        </div>
+        <div class="group">
+            <label>同行成員 (用頓號「、」或逗號分隔)</label>
+            <input type="text" id="membersInput" value="小明、小華、阿強" placeholder="例如: 小明、小華、阿強" onchange="updateMembers()">
+        </div>
+    </div>
+
+    <!-- 新增：單純匯率換算區塊 -->
+    <div class="card">
+        <h3>💱 單純匯率算盤</h3>
+        <div class="converter-grid">
+            <div class="group">
+                <label>越南盾 (VND ₫)</label>
+                <input type="number" id="calcVnd" placeholder="如 100000" oninput="calcConverter('vnd')">
+            </div>
+            <div class="group">
+                <label>新台幣 (TWD $)</label>
+                <input type="number" id="calcTwd" placeholder="如 100" oninput="calcConverter('twd')">
+            </div>
+        </div>
+        <div class="quick-btn">
+            <button class="btn-small" onclick="addCalcVND(10000)">+1萬 ₫</button>
+            <button class="btn-small" onclick="addCalcVND(100000)">+10萬 ₫</button>
+            <button class="btn-small" onclick="addCalcVND(500000)">+50萬 ₫</button>
+            <button class="btn-small" onclick="clearCalc()">清除換算</button>
+        </div>
+    </div>
+
+    <!-- 2. 新增消費區塊 -->
+    <div class="card">
+        <h3>➕ 新增消費紀錄</h3>
+        <div class="group">
+            <label>消費品項/地點</label>
+            <input type="text" id="itemTitle" placeholder="例如：咖啡廳、河粉店、包車">
+        </div>
+        <div class="group">
+            <label>消費金額 (越南盾 VND)</label>
+            <input type="number" id="itemVnd" placeholder="例如: 250000" oninput="updateLiveCalc()">
+            <div class="quick-btn">
+                <button class="btn-small" onclick="addVND(10000)">+1萬</button>
+                <button class="btn-small" onclick="addVND(100000)">+10萬</button>
+                <button class="btn-small" onclick="addVND(500000)">+50萬</button>
+                <button class="btn-small" onclick="clearVND()">清除</button>
+            </div>
+            <div id="liveTwdCalc" style="font-size:12px; color:#007aff; margin-top:4px;">折合台幣約：NT$ 0</div>
+        </div>
+        <div class="group">
+            <label>先付錢的人 (付款人)</label>
+            <select id="payerSelect"></select>
+        </div>
+        <div class="group">
+            <label>參與平分的人</label>
+            <div class="checkbox-group" id="splitMembersGroup"></div>
+        </div>
+        <button class="btn-primary" onclick="addItem()">新增這筆消費</button>
+    </div>
+
+    <!-- 3. 消費明細區塊 -->
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>📝 消費明細</h3>
+            <button class="btn-danger" onclick="clearAllData()">清空紀錄</button>
+        </div>
+        <ul class="item-list" id="itemList"></ul>
+    </div>
+
+    <!-- 4. 總結分帳區塊 -->
+    <div class="card">
+        <h3>📊 總結分帳</h3>
+        <div class="result-box" id="summaryBox"></div>
+        <div class="settle-card" id="settlementBox"></div>
+        <button class="btn-secondary" onclick="copySummaryText()">📋 複製分帳結果傳至 LINE</button>
+    </div>
+</div>
+
+<script>
+    let state = {
+        rate: 780,
+        members: ["小明", "小華", "阿強"],
+        items: []
+    };
+
+    function init() {
+        const saved = localStorage.getItem('vn_split_app_data');
+        if (saved) {
+            try { state = JSON.parse(saved); } catch(e){}
+        }
+        document.getElementById('rate').value = state.rate || 780;
+        document.getElementById('membersInput').value = state.members.join('、');
+        render();
+    }
+
+    function saveData() {
+        state.rate = parseFloat(document.getElementById('rate').value) || 780;
+        localStorage.setItem('vn_split_app_data', JSON.stringify(state));
+    }
+
+    // --- 新增：匯率計算器邏輯 ---
+    function calcConverter(source) {
+        const rate = parseFloat(document.getElementById('rate').value) || 780;
+        const vndInput = document.getElementById('calcVnd');
+        const twdInput = document.getElementById('calcTwd');
+
+        if (source === 'vnd') {
+            const vnd = parseFloat(vndInput.value);
+            if (!isNaN(vnd)) {
+                twdInput.value = (vnd / rate).toFixed(1);
+            } else {
+                twdInput.value = '';
+            }
+        } else if (source === 'twd') {
+            const twd = parseFloat(twdInput.value);
+            if (!isNaN(twd)) {
+                vndInput.value = Math.round(twd * rate);
+            } else {
+                vndInput.value = '';
+            }
+        }
+    }
+
+    function addCalcVND(amount) {
+        const input = document.getElementById('calcVnd');
+        input.value = (parseFloat(input.value) || 0) + amount;
+        calcConverter('vnd');
+    }
+
+    function clearCalc() {
+        document.getElementById('calcVnd').value = '';
+        document.getElementById('calcTwd').value = '';
+    }
+    // ----------------------------
+
+    function updateMembers() {
+        const input = document.getElementById('membersInput').value;
+        const list = input.split(/[,、，\s]+/).filter(m => m.trim() !== "");
+        if (list.length > 0) {
+            state.members = list;
+            saveData();
+            render();
+        }
+    }
+
+    function updateLiveCalc() {
+        const rate = parseFloat(document.getElementById('rate').value) || 780;
+        const vnd = parseFloat(document.getElementById('itemVnd').value) || 0;
+        const twd = Math.round(vnd / rate);
+        document.getElementById('liveTwdCalc').innerText = `折合台幣約：NT$ ${twd.toLocaleString()}`;
+    }
+
+    function addVND(amount) {
+        const input = document.getElementById('itemVnd');
+        input.value = (parseFloat(input.value) || 0) + amount;
+        updateLiveCalc();
+    }
+
+    function clearVND() {
+        document.getElementById('itemVnd').value = '';
+        updateLiveCalc();
+    }
+
+    function addItem() {
+        const title = document.getElementById('itemTitle').value.trim() || "日常消費";
+        const vnd = parseFloat(document.getElementById('itemVnd').value);
+        const payer = document.getElementById('payerSelect').value;
+
+        const checkedNodes = document.querySelectorAll('#splitMembersGroup input[type="checkbox"]:checked');
+        const splitWith = Array.from(checkedNodes).map(node => node.value);
+
+        if (!vnd || vnd <= 0) { alert("請輸入有效的金額！"); return; }
+        if (splitWith.length === 0) { alert("請至少選擇一位平分人員！"); return; }
+
+        state.items.push({
+            id: Date.now(),
+            title,
+            vnd,
+            payer,
+            splitWith
+        });
+
+        document.getElementById('itemTitle').value = '';
+        document.getElementById('itemVnd').value = '';
+        updateLiveCalc();
+
+        saveData();
+        render();
+    }
+
+    function deleteItem(id) {
+        state.items = state.items.filter(item => item.id !== id);
+        saveData();
+        render();
+    }
+
+    function clearAllData() {
+        if (confirm("確定要清空所有消費紀錄嗎？")) {
+            state.items = [];
+            saveData();
+            render();
+        }
+    }
+
+    function render() {
+        const rate = parseFloat(document.getElementById('rate').value) || 780;
+
+        // 1. 人員選單
+        const payerSelect = document.getElementById('payerSelect');
+        payerSelect.innerHTML = state.members.map(m => `<option value="${m}">${m}</option>`).join('');
+
+        const splitGroup = document.getElementById('splitMembersGroup');
+        splitGroup.innerHTML = state.members.map(m => `
+            <label class="checkbox-item">
+                <input type="checkbox" value="${m}" checked> ${m}
+            </label>
+        `).join('');
+
+        // 2. 消費明細
+        const itemList = document.getElementById('itemList');
+        if (state.items.length === 0) {
+            itemList.innerHTML = `<li style="color:#888; text-align:center; padding:10px;">尚無消費紀錄</li>`;
+        } else {
+            itemList.innerHTML = state.items.map(item => {
+                const twd = Math.round(item.vnd / rate);
+                return `
+                <li class="item-row">
+                    <div class="item-info">
+                        <div class="item-title">${item.title} - ${item.vnd.toLocaleString()} ₫ (NT$ ${twd.toLocaleString()})</div>
+                        <div class="item-sub">由 <b>${item.payer}</b> 先付 | 平分：${item.splitWith.join('、')}</div>
+                    </div>
+                    <button class="btn-danger" onclick="deleteItem(${item.id})">刪除</button>
+                </li>
+                `;
+            }).join('');
+        }
+
+        // 3. 計算分帳
+        let totalVnd = 0;
+        let paid = {};
+        let shouldPay = {};
+
+        state.members.forEach(m => { paid[m] = 0; shouldPay[m] = 0; });
+
+        state.items.forEach(item => {
+            totalVnd += item.vnd;
+            if (paid[item.payer] !== undefined) paid[item.payer] += item.vnd;
+
+            const share = item.vnd / item.splitWith.length;
+            item.splitWith.forEach(m => {
+                if (shouldPay[m] !== undefined) shouldPay[m] += share;
+            });
+        });
+
+        const totalTwd = Math.round(totalVnd / rate);
+
+        document.getElementById('summaryBox').innerHTML = `
+            <div class="result-row"><span>總消費 (VND)：</span><b>${Math.round(totalVnd).toLocaleString()} ₫</b></div>
+            <div class="result-row"><span>總消費折合 (TWD)：</span><b style="color:#007aff;">NT$ ${totalTwd.toLocaleString()}</b></div>
+        `;
+
+        // 結算 UI
+        let netBalancesVnd = {};
+        let settleHtml = `<b>各成員應付/應收結算：</b><br><ul style="padding-left:20px; margin:6px 0;">`;
+
+        state.members.forEach(m => {
+            const netVnd = Math.round(paid[m] - shouldPay[m]);
+            const netTwd = Math.round(netVnd / rate);
+            netBalancesVnd[m] = netVnd;
+
+            if (netVnd > 0) {
+                settleHtml += `<li><b>${m}</b>：應收 <b>${netVnd.toLocaleString()} ₫</b> <span style="color:#555;">(NT$ ${netTwd.toLocaleString()})</span></li>`;
+            } else if (netVnd < 0) {
+                settleHtml += `<li><b>${m}</b>：應付 <b>${Math.abs(netVnd).toLocaleString()} ₫</b> <span style="color:#555;">(NT$ ${Math.abs(netTwd).toLocaleString()})</span></li>`;
+            } else {
+                settleHtml += `<li><b>${m}</b>：已平帳</li>`;
+            }
+        });
+        settleHtml += `</ul>`;
+
+        // 計算平帳給錢路徑
+        let debtors = [];
+        let creditors = [];
+
+        for (let m in netBalancesVnd) {
+            if (netBalancesVnd[m] < 0) debtors.push({ name: m, amount: Math.abs(netBalancesVnd[m]) });
+            if (netBalancesVnd[m] > 0) creditors.push({ name: m, amount: netBalancesVnd[m] });
+        }
+
+        let transfers = [];
+        let d = 0, c = 0;
+        while (d < debtors.length && c < creditors.length) {
+            let debtor = debtors[d];
+            let creditor = creditors[c];
+            let amountVnd = Math.min(debtor.amount, creditor.amount);
+            let amountTwd = Math.round(amountVnd / rate);
+
+            transfers.push(`👉 <b>${debtor.name}</b> 給 <b>${creditor.name}</b>：<b>${amountVnd.toLocaleString()} ₫</b> <span style="color:#555;">(NT$ ${amountTwd.toLocaleString()})</span>`);
+
+            debtor.amount -= amountVnd;
+            creditor.amount -= amountVnd;
+
+            if (debtor.amount === 0) d++;
+            if (creditor.amount === 0) c++;
+        }
+
+        if (transfers.length > 0) {
+            settleHtml += `<div style="margin-top:8px; border-top:1px dashed #ccc; padding-top:6px;"><b>建議給錢方式：</b><br>${transfers.join('<br>')}</div>`;
+        }
+
+        document.getElementById('settlementBox').innerHTML = settleHtml;
+    }
+
+    function copySummaryText() {
+        const rate = parseFloat(document.getElementById('rate').value) || 780;
+        let totalVnd = 0;
+        let paid = {}, shouldPay = {};
+        state.members.forEach(m => { paid[m] = 0; shouldPay[m] = 0; });
+
+        state.items.forEach(item => {
+            totalVnd += item.vnd;
+            if (paid[item.payer] !== undefined) paid[item.payer] += item.vnd;
+            const share = item.vnd / item.splitWith.length;
+            item.splitWith.forEach(m => {
+                if (shouldPay[m] !== undefined) shouldPay[m] += share;
+            });
+        });
+
+        const totalTwd = Math.round(totalVnd / rate);
+
+        let text = `🇻🇳 越南旅遊消費結算帳單\n`;
+        text += `-------------------------\n`;
+        text += `匯率基準：1 TWD = ${rate} VND\n`;
+        text += `總消費額：${Math.round(totalVnd).toLocaleString()} ₫ (約 NT$ ${totalTwd.toLocaleString()})\n\n`;
+
+        text += `【成員結算概況】\n`;
+        let netBalancesVnd = {};
+        state.members.forEach(m => {
+            const netVnd = Math.round(paid[m] - shouldPay[m]);
+            const netTwd = Math.round(netVnd / rate);
+            netBalancesVnd[m] = netVnd;
+            if (netVnd > 0) text += `• ${m}：應收 ${netVnd.toLocaleString()} ₫ (NT$ ${netTwd.toLocaleString()})\n`;
+            else if (netVnd < 0) text += `• ${m}：應付 ${Math.abs(netVnd).toLocaleString()} ₫ (NT$ ${Math.abs(netTwd).toLocaleString()})\n`;
+            else text += `• ${m}：已平帳\n`;
+        });
+
+        let debtors = [], creditors = [];
+        for (let m in netBalancesVnd) {
+            if (netBalancesVnd[m] < 0) debtors.push({ name: m, amount: Math.abs(netBalancesVnd[m]) });
+            if (netBalancesVnd[m] > 0) creditors.push({ name: m, amount: netBalancesVnd[m] });
+        }
+
+        let transfers = [];
+        let d = 0, c = 0;
+        while (d < debtors.length && c < creditors.length) {
+            let amountVnd = Math.min(debtors[d].amount, creditors[c].amount);
+            let amountTwd = Math.round(amountVnd / rate);
+            transfers.push(`👉 ${debtors[d].name} 給 ${creditors[c].name}：${amountVnd.toLocaleString()} ₫ (NT$ ${amountTwd.toLocaleString()})`);
+            debtors[d].amount -= amountVnd;
+            creditors[c].amount -= amountVnd;
+            if (debtors[d].amount === 0) d++;
+            if (creditors[c].amount === 0) c++;
+        }
+
+        if (transfers.length > 0) {
+            text += `\n【建議轉帳/找錢方式】\n` + transfers.join('\n') + `\n`;
+        }
+
+        navigator.clipboard.writeText(text).then(() => {
+            alert("已複製雙幣別結算結果到剪貼簿！可直接貼到 LINE 群組。");
+        }).catch(() => {
+            alert("複製失敗，請手動複製。");
+        });
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>
